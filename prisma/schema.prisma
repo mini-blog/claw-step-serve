@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String              @id @default(uuid())
+  openid             String?
+  email              String?
+  phone              String?
+  username           String?
+  nickname           String?
+  avatar             String?
+  language           String              @default("zh_CN")
+  isPro              Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  chatMessages       ChatMessage[]
+  feedback           Feedback[]
+  letters            Letter[]
+  notifications      Notification[]
+  proSubscriptions   ProSubscription[]
+  stepRecords        StepRecord[]
+  invitedBy          TravelPartnership[] @relation("TravelPartnershipInvitee")
+  travelPartnerships TravelPartnership[] @relation("TravelPartnershipInviter")
+  userCities         UserCity[]
+  userPets           UserPet[]
+
+  @@unique([phone, openid])
+  @@unique([email, openid])
+  @@map("users")
+}
+
+model Pet {
+  id           String        @id @default(uuid())
+  name         String
+  englishName  String
+  description  String
+  imageUrl     String
+  personality  String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  chatMessages ChatMessage[]
+  letters      Letter[]
+  userPets     UserPet[]
+
+  @@map("pets")
+}
+
+model UserPet {
+  id         String   @id @default(uuid())
+  userId     String
+  petId      String
+  isActive   Boolean  @default(false)
+  selectedAt DateTime @default(now())
+  pet        Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, petId])
+  @@map("user_pets")
+}
+
+model City {
+  id              String       @id @default(uuid())
+  name            String
+  englishName     String
+  continent       String
+  country         String
+  imageUrl        String
+  isUnlocked      Boolean      @default(false)
+  unlockCondition String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  stepRecords     StepRecord[]
+  userCities      UserCity[]
+
+  @@map("cities")
+}
+
+model UserCity {
+  id            String    @id @default(uuid())
+  userId        String
+  cityId        String
+  visitCount    Int       @default(0)
+  totalSteps    Int       @default(0)
+  totalCalories Int       @default(0)
+  firstVisitAt  DateTime?
+  lastVisitAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  city          City      @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cityId])
+  @@map("user_cities")
+}
+
+model StepRecord {
+  id        String   @id @default(uuid())
+  userId    String
+  cityId    String
+  steps     Int
+  calories  Int
+  date      DateTime
+  createdAt DateTime @default(now())
+  city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cityId, date])
+  @@map("step_records")
+}
+
+model Letter {
+  id        String   @id @default(uuid())
+  userId    String
+  petId     String
+  title     String
+  content   String
+  type      String
+  mediaUrl  String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("letters")
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  userId     String
+  petId      String
+  type       String
+  content    String
+  mediaUrl   String?
+  isFromUser Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  pet        Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+model TravelPartnership {
+  id             String    @id @default(uuid())
+  inviterId      String
+  inviteeId      String
+  invitationCode String    @unique
+  status         String    @default("pending")
+  createdAt      DateTime  @default(now())
+  acceptedAt     DateTime?
+  invitee        User      @relation("TravelPartnershipInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  inviter        User      @relation("TravelPartnershipInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@unique([inviterId, inviteeId])
+  @@map("travel_partnerships")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  content   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model ProSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  planType  String
+  status    String   @default("active")
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("pro_subscriptions")
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  userId    String
+  content   String
+  contact   String?
+  imageUrl  String?
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("feedback")
+}

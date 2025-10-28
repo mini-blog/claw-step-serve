@@ -1,0 +1,524 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/auth/check-phone": {
+      "post": {
+        "operationId": "AuthController_checkPhone",
+        "summary": "检查手机号是否已注册",
+        "description": "检查手机号是否已经在系统中注册，返回用户信息或提示未注册",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckPhoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "检查成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckPhoneResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/phone/one-click": {
+      "post": {
+        "operationId": "AuthController_oneClickLogin",
+        "summary": "一键登录（移动商SDK）",
+        "description": "通过移动商SDK获取的accessToken进行一键登录",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OneClickLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功，返回用户信息和JWT令牌",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "401": {
+            "description": "SDK token验证失败"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/phone/code-login": {
+      "post": {
+        "operationId": "AuthController_phoneCodeLogin",
+        "summary": "验证码登录",
+        "description": "通过手机号和短信验证码进行登录",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneCodeLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功，返回用户信息和JWT令牌",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误或验证码错误"
+          },
+          "429": {
+            "description": "验证码发送过于频繁"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/phone/send-code": {
+      "post": {
+        "operationId": "AuthController_sendSmsCode",
+        "summary": "发送短信验证码",
+        "description": "向指定手机号发送短信验证码",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendSmsCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "验证码发送成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendSmsCodeResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "429": {
+            "description": "发送过于频繁，请稍后再试"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/refresh": {
+      "get": {
+        "operationId": "AuthController_refreshToken",
+        "summary": "刷新访问令牌",
+        "description": "使用有效的JWT令牌刷新获取新的访问令牌",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "令牌刷新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshTokenResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "令牌无效或已过期"
+          }
+        },
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/api/user": {
+      "get": {
+        "operationId": "UserController_getUser",
+        "summary": "获取用户",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "用户"
+        ]
+      },
+      "post": {
+        "operationId": "UserController_postUser",
+        "summary": "创建用户",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutUserInfoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "用户"
+        ]
+      },
+      "put": {
+        "operationId": "UserController_editUser",
+        "summary": "修改用户",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutUserInfoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "用户"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Claw Step API",
+    "description": "Claw Step 应用后端 API 文档",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "auth",
+      "description": "认证相关接口"
+    },
+    {
+      "name": "user",
+      "description": "用户相关接口"
+    },
+    {
+      "name": "pet",
+      "description": "宠物相关接口"
+    },
+    {
+      "name": "city",
+      "description": "城市相关接口"
+    },
+    {
+      "name": "travel",
+      "description": "旅行相关接口"
+    },
+    {
+      "name": "message",
+      "description": "消息相关接口"
+    },
+    {
+      "name": "notification",
+      "description": "通知相关接口"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "JWT-auth": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "name": "JWT",
+        "description": "Enter JWT token",
+        "in": "header"
+      }
+    },
+    "schemas": {
+      "CheckPhoneDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "description": "手机号",
+            "example": "13800138000"
+          }
+        },
+        "required": [
+          "phone"
+        ]
+      },
+      "UserInfoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "用户ID",
+            "example": "uuid-string"
+          },
+          "phone": {
+            "type": "string",
+            "description": "手机号",
+            "example": "13800138000"
+          },
+          "nickname": {
+            "type": "string",
+            "description": "昵称",
+            "example": "用户昵称"
+          },
+          "avatar": {
+            "type": "string",
+            "description": "头像URL",
+            "example": "https://example.com/avatar.jpg"
+          },
+          "isPro": {
+            "type": "boolean",
+            "description": "是否为Pro用户",
+            "example": false
+          },
+          "language": {
+            "type": "string",
+            "description": "语言设置",
+            "example": "zh-CN"
+          }
+        },
+        "required": [
+          "id",
+          "phone",
+          "nickname",
+          "avatar",
+          "isPro",
+          "language"
+        ]
+      },
+      "CheckPhoneResponseDto": {
+        "type": "object",
+        "properties": {
+          "exists": {
+            "type": "boolean",
+            "description": "手机号是否已注册",
+            "example": true
+          },
+          "user": {
+            "description": "用户信息（如果已注册）",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserInfoDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "exists"
+        ]
+      },
+      "OneClickLoginDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "description": "手机号",
+            "example": "13800138000"
+          },
+          "accessToken": {
+            "type": "string",
+            "description": "移动商SDK返回的accessToken"
+          }
+        },
+        "required": [
+          "phone",
+          "accessToken"
+        ]
+      },
+      "LoginResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "访问令牌",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "refreshToken": {
+            "type": "string",
+            "description": "刷新令牌",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "user": {
+            "description": "用户信息",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserInfoDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "user"
+        ]
+      },
+      "PhoneCodeLoginDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "description": "手机号",
+            "example": "13800138000"
+          },
+          "code": {
+            "type": "string",
+            "description": "短信验证码",
+            "example": "123456"
+          }
+        },
+        "required": [
+          "phone",
+          "code"
+        ]
+      },
+      "SendSmsCodeDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "description": "手机号",
+            "example": "13800138000"
+          }
+        },
+        "required": [
+          "phone"
+        ]
+      },
+      "SendSmsCodeResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "发送结果",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "提示信息",
+            "example": "验证码已发送"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "RefreshTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "新的访问令牌",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "user": {
+            "description": "用户信息",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserInfoDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accessToken",
+          "user"
+        ]
+      },
+      "PutUserInfoDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "用户名"
+          },
+          "avatar": {
+            "type": "string",
+            "description": "用户头像"
+          },
+          "nickname": {
+            "type": "string",
+            "description": "昵称"
+          },
+          "language": {
+            "type": "string",
+            "description": "语言"
+          }
+        },
+        "required": [
+          "username",
+          "avatar",
+          "nickname",
+          "language"
+        ]
+      }
+    }
+  }
+}

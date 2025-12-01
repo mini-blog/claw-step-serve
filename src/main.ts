@@ -29,7 +29,7 @@ async function bootstrap() {
    .addTag('pet', '宠物相关接口')
    .addTag('city', '城市相关接口')
    .addTag('travel', '旅行相关接口')
-   .addTag('message', '消息相关接口')
+   .addTag('chat', '聊天相关接口')
    .addTag('notification', '通知相关接口')
    .build();
   
@@ -42,7 +42,6 @@ async function bootstrap() {
     const path = require('path');
     const outputPath = path.join(process.cwd(), 'openapi.json');
     fs.writeFileSync(outputPath, JSON.stringify(document, null, 2));
-    console.log(`OpenAPI JSON 文件已生成: ${outputPath}`);
   }
 
   // ws模块适配器
@@ -50,5 +49,3 @@ async function bootstrap() {
   await app.listen(3000);
 }
 bootstrap();
-
-console.log('DATABASE_URL', process.env.DATABASE_URL);

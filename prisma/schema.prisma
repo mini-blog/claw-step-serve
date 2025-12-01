@@ -17,11 +17,14 @@ model User {
   avatar             String?
   language           String              @default("zh_CN")
   isPro              Boolean             @default(false)
+  travelTickets      Int                 @default(3)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   chatMessages       ChatMessage[]
+  chatSessions       ChatSession[]
   feedback           Feedback[]
   letters            Letter[]
+  letterReplies      LetterReply[]
   notifications      Notification[]
   proSubscriptions   ProSubscription[]
   stepRecords        StepRecord[]
@@ -29,6 +32,10 @@ model User {
   travelPartnerships TravelPartnership[] @relation("TravelPartnershipInviter")
   userCities         UserCity[]
   userPets           UserPet[]
+  travels            Travel[]
+  userAchievements   UserAchievement[]
+  userDreams         UserDream[]
+  userCoupons        UserCoupon[]
 
   @@unique([phone, openid])
   @@unique([email, openid])
@@ -36,17 +43,26 @@ model User {
 }
 
 model Pet {
-  id           String        @id @default(uuid())
-  name         String
-  englishName  String
-  description  String
-  imageUrl     String
-  personality  String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  chatMessages ChatMessage[]
-  letters      Letter[]
-  userPets     UserPet[]
+  id                String           @id @default(uuid())
+  name              String
+  englishName       String
+  imageUrl          String
+  
+  // 扩展字段（用于旅伴档案）
+  shortDescription  String?         // 简短描述（用于顶部显示）
+  longDescription   String?          // 详细描述（用于简介Tab的两段文字）
+  personalityTags   String[]         // 性格标签数组（如：["毒舌", "爱薅羊毛", "机智"]）
+  classicLines      String[]         // 经典台词数组
+  
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  
+  // 宠物模板级别的数据（所有用户共享）
+  letterTemplates   LetterTemplate[]
+  dreams            Dream[]
+  
+  // 用户和宠物的关联
+  userPets          UserPet[]
 
   @@map("pets")
 }
@@ -59,24 +75,51 @@ model UserPet {
   selectedAt DateTime @default(now())
   pet        Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // 用户和特定宠物实例的交互数据（应该关联到 UserPet，而不是 Pet）
+  chatMessages      ChatMessage[]
+  chatSessions      ChatSession[]
+  letters           Letter[]
+  letterReplies     LetterReply[]
+  userAchievements  UserAchievement[]
+  userDreams        UserDream[]
 
   @@unique([userId, petId])
   @@map("user_pets")
+}
+
+model Continent {
+  id          String   @id @default(uuid())
+  name        String   @unique // 洲名（如：亚洲）
+  englishName String   // 英文名（如：Asia）
+  imageUrl    String?  // 洲的图片
+  order       Int      @default(0) // 排序
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  cities      City[]
+  
+  @@map("continents")
 }
 
 model City {
   id              String       @id @default(uuid())
   name            String
   englishName     String
-  continent       String
+  continentId     String
   country         String
   imageUrl        String
   isUnlocked      Boolean      @default(false)
   unlockCondition String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+  
+  continent       Continent    @relation(fields: [continentId], references: [id], onDelete: Cascade)
   stepRecords     StepRecord[]
   userCities      UserCity[]
+  travels         Travel[]
 
   @@map("cities")
 }
@@ -114,89 +157,393 @@ model StepRecord {
   @@map("step_records")
 }
 
-model Letter {
-  id        String   @id @default(uuid())
-  userId    String
-  petId     String
-  title     String
-  content   String
-  type      String
-  mediaUrl  String?
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model LetterTemplate {
+  id          String   @id @default(uuid())
+  type        Int   // 1(歌曲) | 2（星盘） | 3（）
+  content     {}[] // {content, mediaType, mediaUrls}
+  
+  // 触发条件
+  triggerType String?  // 'city' | 'stepCount' | 'day' | 'manual'
+  triggerValue String? // 触发值（城市ID+天数）
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  pet         Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  letters     Letter[] // 基于此模板生成的来信实例
+  
+  @@map("letter_templates")
+}
 
+model Letter {
+  id              String        @id @default(uuid())
+  userId          String
+  userPetId       String        // 关联到用户选择的宠物实例
+  petId           String        // 保留用于快速查询（冗余字段）
+  templateId      String?       // 关联的模板ID（可选，支持手动创建）
+  
+  title           String
+  content         String
+  type            String        // 'aiDrawing' | 'aiSong' | 'aiHoroscope'
+  mediaUrls       String[]      // 媒体文件URLs（JSON数组）
+  mediaType       String        // 'none' | 'singleImage' | 'fourImages' | 'video'
+  
+  // 状态
+  isRead          Boolean       @default(false)
+  hasInteracted   Boolean       @default(false) // 是否已交互
+  interactionType String?       // 'try' | 'save' | null - 用户选择的交互方式
+  
+  // 时间
+  createdAt       DateTime      @default(now())
+  readAt          DateTime?
+  interactedAt    DateTime?
+  
+  // 关联
+  userPet         UserPet       @relation(fields: [userPetId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template        LetterTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  replies         LetterReply[] // 回复列表
+  // 注意：petId 仅作为冗余字段用于快速查询，不建立关系
+  
   @@map("letters")
 }
 
-model ChatMessage {
-  id         String   @id @default(uuid())
-  userId     String
-  petId      String
-  type       String
-  content    String
-  mediaUrl   String?
-  isFromUser Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  pet        Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model LetterReply {
+  id          String   @id @default(uuid())
+  letterId    String
+  userId      String
+  userPetId   String   // 关联到用户选择的宠物实例
+  petId       String   // 保留用于快速查询（冗余字段）
+  
+  // 回复内容
+  content     String
+  mediaUrls   String[] // 媒体文件URLs（用户上传的图片、AI生成的图片/视频等）
+  mediaType   String   // 'none' | 'singleImage' | 'video'
+  
+  // 回复者
+  isFromUser  Boolean  @default(true) // true=用户回复，false=AI回复
+  
+  // AI生成相关
+  aiStatus    String?  // 'pending' | 'processing' | 'completed' | 'failed'
+  aiResultUrl String?  // AI生成的结果URL（图片、音频等）
+  
+  createdAt   DateTime @default(now())
+  
+  letter      Letter   @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  userPet     UserPet  @relation(fields: [userPetId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // 注意：petId 仅作为冗余字段用于快速查询，不建立关系
+  
+  @@map("letter_replies")
+}
 
+model ChatSession {
+  id                String        @id @default(uuid())
+  userId            String
+  userPetId         String        // 关联到用户选择的宠物实例
+  petId             String        // 保留用于快速查询（冗余字段）
+  
+  // 会话信息
+  startTime         DateTime      @default(now())
+  endTime           DateTime?
+  duration          Int           @default(0) // 会话时长（秒）
+  
+  // 统计
+  messageCount      Int           @default(0)
+  userMessageCount  Int           @default(0)
+  petMessageCount   Int           @default(0)
+  
+  // 状态
+  isActive          Boolean       @default(true)
+  
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userPet           UserPet       @relation(fields: [userPetId], references: [id], onDelete: Cascade)
+  messages          ChatMessage[]
+  // 注意：petId 仅作为冗余字段用于快速查询，不建立关系
+  
+  @@unique([userId, userPetId]) // 每个用户和宠物实例只有一个活跃会话
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id         String       @id @default(uuid())
+  userId     String
+  userPetId  String       // 关联到用户选择的宠物实例
+  petId      String       // 保留用于快速查询（冗余字段）
+  sessionId  String?      // 关联的聊天会话ID
+  type       String       // 'userText' | 'userImage' | 'userImageText' | 'userVoice' | 'petText'
+  content    String       // 文本内容
+  mediaUrls  String[]     // 媒体文件URLs（图片、语音等）
+  mediaType  String       // 'none' | 'image' | 'voice' | 'imageText'
+  duration   Int?         // 语音时长（秒）
+  isFromUser Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  
+  userPet    UserPet      @relation(fields: [userPetId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session    ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  // 注意：petId 仅作为冗余字段用于快速查询，不建立关系
+  
   @@map("chat_messages")
 }
 
 model TravelPartnership {
   id             String    @id @default(uuid())
   inviterId      String
-  inviteeId      String
+  inviteeId      String?   // 可选，生成邀请码时还不知道被邀请者
   invitationCode String    @unique
   status         String    @default("pending")
   createdAt      DateTime  @default(now())
+  expiresAt      DateTime  // 邀请码过期时间
   acceptedAt     DateTime?
-  invitee        User      @relation("TravelPartnershipInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  unbindRequestedAt DateTime? // 解除请求时间
+  unbindExpiresAt   DateTime? // 解除请求过期时间
+  invitee        User?     @relation("TravelPartnershipInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
   inviter        User      @relation("TravelPartnershipInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  travels        Travel[]
 
-  @@unique([inviterId, inviteeId])
   @@map("travel_partnerships")
 }
 
+model Travel {
+  id            String    @id @default(uuid())
+  userId        String
+  cityId        String
+  
+  // 旅行类型
+  type          String    // 'single' 或 'dual'
+  
+  // 双人旅行的旅伴信息
+  partnerId     String?   // 如果是双人旅行，记录旅伴的userId
+  partnershipId String?   // 关联的TravelPartnership ID
+  
+  // 旅行状态
+  status        String    @default("active")  // 'active', 'completed', 'paused'
+  
+  // 时间相关
+  startDate     DateTime  @default(now())
+  endDate       DateTime? // 旅行结束时间（7天后或手动结束）
+  completedAt   DateTime? // 完成时间
+  
+  // 旅行统计
+  totalSteps    Int       @default(0)
+  totalCalories Int       @default(0)
+  days          Int       @default(0)  // 已旅行天数
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // 关联关系
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city          City      @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  partnership   TravelPartnership? @relation(fields: [partnershipId], references: [id], onDelete: SetNull)
+  
+  @@map("travels")
+}
+
 model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  title     String
-  content   String
-  type      String
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  userId     String
+  title      String
+  content    String
+  type       String   // 'friend_request' | 'travel_invitation' | 'activity_promotion' | 'system'
+  avatar     String?  // 通知头像URL（可选）
+  imageUrl   String?  // 通知图片URL（可选）
+  actionLink String?  // 行动链接（可选，如："点击立即参与"）
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
 }
 
+model SubscriptionPlan {
+  id            String   @id @default(uuid())
+  planType      String   @unique // 'monthly' | 'yearly'
+  name          String   // 方案名称
+  description   String   // 方案描述
+  price         Decimal  // 价格
+  originalPrice  Decimal? // 原价
+  discount      Int?     // 折扣百分比
+  duration      Int      // 订阅时长（天数）
+  currency      String   @default("CNY")
+  isActive      Boolean  @default(true)
+  order         Int      @default(0)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@map("subscription_plans")
+}
+
 model ProSubscription {
-  id        String   @id @default(uuid())
-  userId    String
-  planType  String
-  status    String   @default("active")
-  startDate DateTime
-  endDate   DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String   @id @default(uuid())
+  userId        String
+  planType      String   // 'monthly' | 'yearly'
+  status        String   @default("active") // 'active' | 'expired' | 'cancelled' | 'pending'
+  
+  // 价格信息
+  price         Decimal  // 实际支付价格
+  originalPrice Decimal? // 原价（用于显示折扣）
+  discount      Int?     // 折扣百分比
+  
+  // 支付信息
+  paymentMethod String?  // 'apple' | 'google' | 'alipay' | 'wechat'
+  paymentId     String?  // 支付订单ID
+  receipt       String?  // 支付凭证（加密存储）
+  
+  // 时间信息
+  startDate     DateTime
+  endDate       DateTime
+  cancelledAt   DateTime? // 取消时间
+  
+  // 续费设置
+  autoRenew     Boolean  @default(true)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("pro_subscriptions")
 }
 
 model Feedback {
-  id        String   @id @default(uuid())
-  userId    String
-  content   String
-  contact   String?
-  imageUrl  String?
-  status    String   @default("pending")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  userId     String
+  content    String
+  contact    String?  // 联系方式（邮箱或手机）
+  imageUrls  String[] // 图片URL数组（支持多张截图）
+  status     String   @default("pending") // 'pending' | 'reviewed' | 'resolved'
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("feedback")
+}
+
+// 成就定义表
+model Achievement {
+  id          String   @id @default(uuid())
+  name        String   // 成就名称（如："日行万步"）
+  description String?  // 成就描述
+  iconUrl     String?  // 成就图标URL
+  type        String?  // 成就类型（如：'daily_steps', 'total_distance', 'interaction_count'）
+  targetValue Decimal? // 目标值（如：10000步）
+  order       Int      @default(0) // 排序
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userAchievements UserAchievement[]
+  
+  @@map("achievements")
+}
+
+// 用户成就关联表
+model UserAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  userPetId     String      // 关联到用户选择的宠物实例
+  petId         String      // 保留用于快速查询（冗余字段）
+  achievementId String
+  status        String      @default("locked") // 'locked' | 'unlocked' | 'in_progress'
+  currentProgress Decimal?  // 当前进度值
+  unlockedAt    DateTime?   // 解锁时间
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userPet       UserPet     @relation(fields: [userPetId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  // 注意：petId 仅作为冗余字段用于快速查询，不建立关系
+  
+  @@unique([userId, userPetId, achievementId])
+  @@map("user_achievements")
+}
+
+// 梦想定义表
+model Dream {
+  id          String   @id @default(uuid())
+  petId       String   // 关联到宠物（每个宠物可能有不同的梦想）
+  name        String   // 梦想名称（如："编写《环球薅羊毛圣经》"）
+  description String?  // 梦想描述
+  icon        String?  // 图标（emoji或URL）
+  targetValue Int      // 目标值（如：100）
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  pet         Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  userDreams  UserDream[]
+  
+  @@map("dreams")
+}
+
+// 用户梦想进度表
+model UserDream {
+  id            String   @id @default(uuid())
+  userId        String
+  userPetId     String   // 关联到用户选择的宠物实例
+  petId         String   // 保留用于快速查询（冗余字段）
+  dreamId       String
+  currentProgress Int    @default(0) // 当前进度值
+  status        String   @default("in_progress") // 'in_progress' | 'completed'
+  completedAt   DateTime?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userPet       UserPet  @relation(fields: [userPetId], references: [id], onDelete: Cascade)
+  dream         Dream    @relation(fields: [dreamId], references: [id], onDelete: Cascade)
+  // 注意：petId 仅作为冗余字段用于快速查询，不建立关系
+  
+  @@unique([userId, userPetId, dreamId])
+  @@map("user_dreams")
+}
+
+// 优惠券模板表
+model Coupon {
+  id          String      @id @default(uuid())
+  title       String      // 优惠券标题（如："瑞幸咖啡免费券"）
+  imageUrl    String?     // 优惠券图片URL
+  description String?     // 优惠券描述
+  validUntil  DateTime?   // 有效期（可选，如果为空则使用 UserCoupon 的 validUntil）
+  isActive    Boolean     @default(true) // 是否启用
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  userCoupons UserCoupon[]
+  
+  @@map("coupons")
+}
+
+// 用户优惠券表
+model UserCoupon {
+  id          String   @id @default(uuid())
+  userId      String
+  couponId    String
+  couponCode  String   // 优惠券码（每个用户每个优惠券有唯一的码）
+  status      String   @default("unused") // 'unused' | 'used' | 'expired'
+  validUntil  DateTime // 有效期
+  usedAt      DateTime? // 使用时间
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coupon      Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, couponId, couponCode])
+  @@map("user_coupons")
 }

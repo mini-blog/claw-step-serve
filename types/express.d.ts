@@ -1,15 +1,13 @@
-import { User } from '@prisma/client';
+import { User as PrismaUser } from '@prisma/client';
 
 declare global {
   namespace Express {
-    // 扩展 User 接口
-    interface User extends User {}
+    // 让 Express.User 继承 Prisma 的 User
+    // 注意：Passport 默认定义了 User 接口为空接口，这里利用接口合并
+    interface User extends PrismaUser {}
     
-    // 扩展 Request 接口
     interface Request {
-      user: User;
+      user?: User;
     }
   }
 }
-
-export {};

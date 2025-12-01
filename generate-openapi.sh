@@ -8,18 +8,9 @@ echo "🚀 启动应用并生成 OpenAPI JSON 文件..."
 # 设置环境变量
 export NODE_ENV=development
 
-# 启动应用（后台运行）
-npm run start:dev &
-APP_PID=$!
-
-# 等待应用启动
-echo "⏳ 等待应用启动..."
-sleep 10
-
 # 检查应用是否启动成功
 if ! curl -f http://localhost:3000/api > /dev/null 2>&1; then
     echo "❌ 应用启动失败"
-    kill $APP_PID
     exit 1
 fi
 

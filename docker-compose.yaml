@@ -23,8 +23,10 @@ services:
       dockerfile: Dockerfile
       args:
         - NODE_ENV=${NODE_ENV:-production}
-    expose:
-      - "3000"
+    # expose:
+    #   - "3000"
+    ports:
+      - "${APP_PORT:-3000}:3000"
     restart: unless-stopped
     depends_on:
       - redis
@@ -33,14 +35,14 @@ services:
       - my-server
     volumes:
       - .:/app                    # 挂载源代码目录
-      - /app/node_modules         # 排除node_modules，使用容器内的
-      - /app/dist                 # 排除构建目录
     env_file:
       - .env
 
   redis:
     container_name: redis
     image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
     expose:
       - "6379"
     restart: unless-stopped

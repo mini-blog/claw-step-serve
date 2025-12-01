@@ -9,11 +9,6 @@ export class CheckPhoneDto {
 }
 
 export class OneClickLoginDto {
-  @IsNotEmpty({ message: '手机号不能为空' })
-  @IsPhoneNumber('CN', { message: '请输入有效的手机号' })
-  @ApiProperty({ description: '手机号', example: '13800138000' })
-  phone: string;
-  
   @IsNotEmpty({ message: 'accessToken不能为空' })
   @IsString()
   @ApiProperty({ description: '移动商SDK返回的accessToken' })
@@ -25,7 +20,7 @@ export class PhoneCodeLoginDto {
   @IsPhoneNumber('CN', { message: '请输入有效的手机号' })
   @ApiProperty({ description: '手机号', example: '13800138000' })
   phone: string;
-  
+
   @IsNotEmpty({ message: '验证码不能为空' })
   @IsString()
   @Length(4, 6, { message: '验证码长度应为4-6位' })
@@ -38,4 +33,18 @@ export class SendSmsCodeDto {
   @IsPhoneNumber('CN', { message: '请输入有效的手机号' })
   @ApiProperty({ description: '手机号', example: '13800138000' })
   phone: string;
+}
+
+export class RefreshTokenDto {
+  @ApiProperty({ description: '刷新令牌', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
+  @IsString()
+  @IsNotEmpty()
+  refreshToken: string;
+}
+
+export class GetMobileDto {
+  @IsNotEmpty({ message: 'accessToken不能为空' })
+  @IsString()
+  @ApiProperty({ description: '阿里云一键登录SDK返回的accessToken', example: 'your-access-token' })
+  accessToken: string;
 }

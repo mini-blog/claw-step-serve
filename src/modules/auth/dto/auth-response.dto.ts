@@ -27,8 +27,8 @@ export class LoginResponseDto {
   @ApiProperty({ description: '刷新令牌', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
   refreshToken: string;
 
-  @ApiProperty({ description: '用户信息', type: UserInfoDto })
-  user: UserInfoDto;
+  @ApiProperty({ description: '是否为新用户', example: false })
+  isNew: boolean;
 }
 
 export class CheckPhoneResponseDto {
@@ -43,14 +43,7 @@ export class RefreshTokenResponseDto {
   @ApiProperty({ description: '新的访问令牌', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
   accessToken: string;
 
-  @ApiProperty({ description: '用户信息', type: UserInfoDto })
-  user: UserInfoDto;
+  @ApiProperty({ description: '新的刷新令牌', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
+  refreshToken: string;
 }
 
-export class SendSmsCodeResponseDto {
-  @ApiProperty({ description: '发送结果', example: true })
-  success: boolean;
-
-  @ApiProperty({ description: '提示信息', example: '验证码已发送' })
-  message: string;
-}

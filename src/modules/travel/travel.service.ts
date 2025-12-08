@@ -1,7 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '@app/core/modules/prisma/prisma.service';
 import { StartTravelDto, SwitchToDualDto, SyncStepsDto } from './dto/travel.dto';
 import { TravelDto, TravelCompanionDto, TodayStepsDto, TravelStatisticsDto, CityTravelStatsDto } from './dto/travel-response.dto';
+import { NotificationService } from '../notification/notification.service';
+import { PushService } from '../notification/push/push.service';
+import { NotificationType } from '../notification/dto/notification.dto';
 
 @Injectable()
 export class TravelService {
@@ -10,7 +13,10 @@ export class TravelService {
   private readonly TRAVEL_DURATION_MS = this.TRAVEL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
   constructor(
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => NotificationService))
+    private readonly notificationService: NotificationService,
+    private readonly pushService: PushService
   ) {}
 
   /**
@@ -224,6 +230,42 @@ export class TravelService {
           avatar: partnerUser.avatar || ''
         };
       }
+
+      // ⚠️ 核心修改：自动向旅伴发送通知和推送
+      // 获取当前用户信息
+      const currentUser = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { nickname: true }
+      });
+      
+      const currentUserName = currentUser?.nickname || '您的好友';
+      const title = '双人旅行邀请';
+      const content = `${currentUserName} 邀请您一起开启前往 ${travel.city.name} 的旅行！`;
+
+      // 1. 站内通知
+      await this.notificationService.createNotification({
+        userId: travel.partnerId,
+        title,
+        content,
+        type: NotificationType.TRAVEL_INVITATION,
+        actionLink: `clawstep://travel/details?id=${travel.id}`, // Deep link
+      });
+
+      // 2. 推送通知
+      await this.pushService.pushToAccount(
+        travel.partnerId,
+        title,
+        content,
+        {
+          type: NotificationType.TRAVEL_INVITATION,
+          travelId: travel.id,
+          inviterId: userId,
+          inviterName: currentUserName,
+          cityId: travel.cityId,
+          cityName: travel.city.name,
+          partnershipId: dto.partnershipId,
+        }
+      );
     }
 
     return {
@@ -624,4 +666,3 @@ export class TravelService {
     return Array.from(cityStatsMap.values());
   }
 }
-

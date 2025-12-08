@@ -2,6 +2,14 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { WsAdapter } from '@nestjs/platform-ws';
+import * as crypto from 'crypto';
+
+// 确保 crypto 模块在全局可用，供 @nestjs/schedule 使用
+if (typeof (globalThis as any).crypto === 'undefined') {
+  (globalThis as any).crypto = {
+    randomUUID: () => crypto.randomUUID(),
+  };
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

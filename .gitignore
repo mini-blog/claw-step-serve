@@ -35,6 +35,7 @@ lerna-debug.log*
 !.vscode/extensions.json
 /generated/prisma
 
+# 允许提交 .env 和 .env.production 到私有仓库
 # .env
 # .env.production
 # .env.development

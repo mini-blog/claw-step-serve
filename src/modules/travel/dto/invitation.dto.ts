@@ -21,4 +21,3 @@ export class CancelUnbindDto {
   @ApiProperty({ description: '解除请求ID', example: 'uuid-string' })
   partnershipId: string;
 }
-

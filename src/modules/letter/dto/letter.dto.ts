@@ -1,39 +1,29 @@
+import { IsString, IsOptional, IsArray, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsArray, IsEnum, IsObject } from 'class-validator';
 
-// 回复请求 DTO
-export class ReplyLetterDto {
-  @ApiProperty({ 
-    description: '交互方式',
-    enum: ['try', 'save'],
-    example: 'try'
-  })
-  @IsEnum(['try', 'save'])
-  action: 'try' | 'save';
+export class AddHistoryItemDto {
+  @ApiProperty({ description: '关联的模版项ID' })
+  @IsString()
+  templateItemId: string;
 
-  @ApiPropertyOptional({ 
-    description: '用户回复文本',
-    example: '好啊，给我画一张'
-  })
+  @ApiPropertyOptional({ description: '角色', enum: ['user', 'pet'] })
   @IsOptional()
   @IsString()
-  content?: string;
+  role?: 'user' | 'pet';
 
-  @ApiPropertyOptional({ 
-    description: '用户上传的图片URLs',
-    type: [String],
-    example: ['https://example.com/user-image.jpg']
-  })
+  @ApiPropertyOptional({ description: '用户输入的文本' })
+  @IsOptional()
+  @IsString()
+  text?: string;
+
+  @ApiPropertyOptional({ description: '媒体类型', enum: ['text', 'audio', 'video', 'image', 'none'] })
+  @IsOptional()
+  @IsString()
+  mediaType?: string;
+
+  @ApiPropertyOptional({ description: '媒体链接列表' })
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
   mediaUrls?: string[];
-
-  @ApiPropertyOptional({ 
-    description: '额外数据（根据type不同有不同字段）',
-    example: { songName: 'xxx', lyrics: 'xxx' }
-  })
-  @IsOptional()
-  @IsObject()
-  extraData?: Record<string, any>;
 }
+

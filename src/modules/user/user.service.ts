@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { TPostUserInfoDto, PutUserInfoDto, UpdateUserProfileDto, UserProfileResponseDto } from './dto/user.dto';
+import { TPostUserInfoDto, UpdateUserProfileDto, UserProfileResponseDto } from './dto/user.dto';
 import { PrismaService } from '@app/core/modules/prisma/prisma.service';
 import { User } from '@prisma/client';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class UserService {
@@ -10,7 +11,8 @@ export class UserService {
   private readonly TRAVEL_DURATION_MS = this.TRAVEL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
   constructor(
-    private prisma: PrismaService
+    private prisma: PrismaService,
+    private uploadService: UploadService,
   ) { }
 
   /**
@@ -26,12 +28,13 @@ export class UserService {
         openid: true,
         email: true,
         phone: true,
-        username: true,
         nickname: true,
         avatar: true,
         language: true,
         isPro: true,
         travelTickets: true,
+        friendInvitationCode: true,
+        friendCodeCreatedAt: true,
         createdAt: true,
         updatedAt: true
       }
@@ -51,12 +54,13 @@ export class UserService {
         openid: true,
         phone: true,
         email: true,
-        username: true,
         nickname: true,
         avatar: true,
         language: true,
         isPro: true,
         travelTickets: true,
+        friendInvitationCode: true,
+        friendCodeCreatedAt: true,
         createdAt: true,
         updatedAt: true
       }
@@ -79,12 +83,13 @@ export class UserService {
         openid: true,
         phone: true,
         email: true,
-        username: true,
         nickname: true,
         avatar: true,
         language: true,
         isPro: true,
         travelTickets: true,
+        friendInvitationCode: true,
+        friendCodeCreatedAt: true,
         createdAt: true,
         updatedAt: true
       }
@@ -103,12 +108,13 @@ export class UserService {
         openid: true,
         email: true,
         phone: true,
-        username: true,
         nickname: true,
         avatar: true,
         language: true,
         isPro: true,
         travelTickets: true,
+        friendInvitationCode: true,
+        friendCodeCreatedAt: true,
         createdAt: true,
         updatedAt: true
       }
@@ -136,22 +142,14 @@ export class UserService {
    * 更新用户资料（部分更新）
    * @param userId 用户ID
    * @param dto 更新数据
+   * @param file 上传的文件（可选）
    * @returns 更新后的用户资料
    */
   async updateUserProfile(
     userId: string,
-    dto: UpdateUserProfileDto
+    dto: UpdateUserProfileDto,
+    file?: Express.Multer.File,
   ): Promise<UserProfileResponseDto> {
-    const updateData: any = {};
-
-    if (dto.nickname !== undefined) {
-      updateData.nickname = dto.nickname;
-    }
-
-    if (dto.avatar !== undefined) {
-      updateData.avatar = dto.avatar;
-    }
-
     // 检查用户是否存在
     const existingUser = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -159,6 +157,24 @@ export class UserService {
 
     if (!existingUser) {
       throw new NotFoundException('用户不存在');
+    }
+
+    const updateData: any = {};
+
+    // 如果传入了昵称，则更新昵称
+    if (dto.nickname !== undefined && dto.nickname !== null) {
+      updateData.nickname = dto.nickname;
+    }
+
+    // 如果有文件上传，先上传文件到OSS，获取URL
+    if (file) {
+      const avatarUrl = await this.uploadService.uploadFile(file);
+      updateData.avatar = avatarUrl;
+    }
+
+    // 如果没有任何字段需要更新，直接返回当前用户信息
+    if (Object.keys(updateData).length === 0) {
+      return await this.mapToProfileResponse(existingUser);
     }
 
     const updatedUser = await this.prisma.user.update({
@@ -175,16 +191,12 @@ export class UserService {
    * @returns 用户资料响应DTO
    */
   private async mapToProfileResponse(user: User): Promise<UserProfileResponseDto> {
-    // 生成显示ID（基于UUID的短ID，例如取前8位并转为大写）
-    const displayId = user.id.substring(0, 8).toUpperCase();
 
     // 实时计算 isPro 状态（基于订阅）
     const isPro = await this.calculateIsProStatus(user.id);
 
     return {
       id: user.id,
-      displayId,
-      username: user.username,
       nickname: user.nickname || '用户',
       avatar: user.avatar,
       isPro,
@@ -202,7 +214,7 @@ export class UserService {
    * @param userId 用户ID
    * @returns 是否为Pro用户
    */
-  private async calculateIsProStatus(userId: string): Promise<boolean> {
+  async calculateIsProStatus(userId: string): Promise<boolean> {
     const now = new Date();
     const activeSubscription = await this.prisma.proSubscription.findFirst({
       where: {
@@ -237,21 +249,6 @@ export class UserService {
     return await this.prisma.user.create({
       data: usrInfo
     });
-  }
-
-  async editUser(openid: string, usrInfo: PutUserInfoDto): Promise<boolean> {
-    const user = await this.prisma.user.findFirst({
-      where: { openid },
-      select: { id: true }
-    });
-    if (user == null) {
-      return true;
-    }
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: usrInfo
-    });
-    return true;
   }
 
   /**
@@ -294,12 +291,13 @@ export class UserService {
         openid: true,
         phone: true,
         email: true,
-        username: true,
         nickname: true,
         avatar: true,
         language: true,
         isPro: true,
         travelTickets: true,
+        friendInvitationCode: true,
+        friendCodeCreatedAt: true,
         createdAt: true,
         updatedAt: true
       }

@@ -1,0 +1,278 @@
+name: Deploy to Aliyun
+
+# 触发条件：推送到 main 分支时自动部署
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # 允许手动触发
+
+# 环境变量（可在 GitHub Secrets 中覆盖）
+env:
+  # 服务器 SSH 配置
+  # 需要在 GitHub Secrets 中配置：
+  # SERVER_HOST: 阿里云服务器公网 IP 或域名，例如：123.456.789.0 或 api.example.com
+  # SERVER_SSH_KEY: SSH 私钥内容（完整内容，包括 -----BEGIN RSA PRIVATE KEY----- 和 -----END RSA PRIVATE KEY-----）
+  # SERVER_USER: SSH 登录用户名（可选，默认为 root）
+  SERVER_HOST: ${{ secrets.SERVER_HOST }}
+  SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+  SERVER_USER: ${{ secrets.SERVER_USER || 'root' }}
+  
+  # 服务器部署路径（可在 GitHub Secrets 中覆盖，默认为 /opt/claw_step_serve）
+  SERVER_DEPLOY_PATH: ${{ secrets.SERVER_DEPLOY_PATH || '/opt/claw_step_serve' }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Create deployment package
+        run: |
+          # 创建部署包，排除不需要的文件
+          # 注意：.env 和 .env.production 会被包含（私有仓库允许提交）
+          echo "📦 打包代码..."
+          zip -r deploy.zip . \
+            -x "*.git*" \
+            -x "*node_modules*" \
+            -x ".env.local" \
+            -x ".env.development" \
+            -x ".env.development.local" \
+            -x ".env.test" \
+            -x ".env.test.local" \
+            -x "*dist*" \
+            -x "*.log" \
+            -x "*coverage*" \
+            -x "*.DS_Store" \
+            -x "*test*" \
+            -x "*.vscode*" \
+            -x "*.idea*" \
+            -x "*__pycache__*" \
+            -x "*.pytest_cache*"
+          
+          # 检查 .env 文件是否存在
+          if [ -f ".env.production" ]; then
+            echo "✅ .env.production 已包含在部署包中"
+          else
+            echo "⚠️  警告: .env.production 不存在"
+          fi
+          
+          if [ -f ".env" ]; then
+            echo "✅ .env 已包含在部署包中"
+          fi
+          
+          echo "✅ 打包完成，文件大小："
+          ls -lh deploy.zip
+      
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ env.SERVER_SSH_KEY }}
+      
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          echo "✅ 已添加服务器到 known_hosts"
+      
+      - name: Debug SSH configuration
+        run: |
+          echo "🔍 调试 SSH 配置..."
+          echo "SSH_AUTH_SOCK: $SSH_AUTH_SOCK"
+          echo "服务器用户: ${{ env.SERVER_USER }}"
+          echo "服务器地址: ${{ env.SERVER_HOST }}"
+          echo ""
+          echo "已加载的 SSH 密钥:"
+          ssh-add -l || echo "⚠️  无法列出 SSH 密钥"
+          echo ""
+          echo "测试 SSH 连接..."
+      
+      - name: Test SSH connection
+        run: |
+          ssh -v -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o ConnectTimeout=10 \
+              ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} \
+              "echo '✅ SSH 连接成功' && whoami && pwd" || {
+            echo "❌ SSH 连接失败"
+            echo "请检查："
+            echo "1. SERVER_HOST 是否正确"
+            echo "2. SERVER_USER 是否正确（默认 root）"
+            echo "3. SERVER_SSH_KEY 是否正确配置"
+            echo "4. 服务器上的 authorized_keys 是否包含对应的公钥"
+            exit 1
+          }
+      
+      - name: Upload and deploy to server
+        run: |
+          # 上传部署包到服务器
+          echo "📤 上传部署包到服务器..."
+          scp -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o ConnectTimeout=30 \
+              deploy.zip ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:/tmp/deploy.zip
+          
+          # 在服务器上执行部署
+          ssh -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o ConnectTimeout=30 \
+              ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} << EOF
+            set -e
+            
+            # 检查并安装 Docker 和 Docker Compose
+            echo "🔍 检查 Docker 环境..."
+            
+            # 检查 Docker
+            if ! command -v docker &> /dev/null; then
+              echo "📦 安装 Docker..."
+              curl -fsSL https://get.docker.com | bash
+              systemctl start docker
+              systemctl enable docker
+              echo "✅ Docker 安装完成"
+            else
+              echo "✅ Docker 已安装: \$(docker --version)"
+            fi
+            
+            # 检查 Docker Compose
+            if ! command -v docker-compose &> /dev/null; then
+              echo "📦 安装 Docker Compose..."
+              DOCKER_COMPOSE_VERSION=\$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d\\" -f4)
+              curl -L "https://github.com/docker/compose/releases/download/\${DOCKER_COMPOSE_VERSION}/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose
+              chmod +x /usr/local/bin/docker-compose
+              echo "✅ Docker Compose 安装完成"
+            else
+              echo "✅ Docker Compose 已安装: \$(docker-compose --version)"
+            fi
+            
+            # 检查 unzip（用于解压部署包）
+            if ! command -v unzip &> /dev/null; then
+              echo "📦 安装 unzip..."
+              if command -v yum &> /dev/null; then
+                yum install -y unzip
+              elif command -v apt-get &> /dev/null; then
+                apt-get update && apt-get install -y unzip
+              else
+                echo "⚠️  无法自动安装 unzip，请手动安装"
+                exit 1
+              fi
+              echo "✅ unzip 安装完成"
+            else
+              echo "✅ unzip 已安装"
+            fi
+            
+            # 设置部署目录
+            DEPLOY_DIR="${{ env.SERVER_DEPLOY_PATH }}"
+            
+            # 执行 server-setup.sh 脚本的核心功能（跳过 root 检查和提示信息）
+            echo "🚀 执行服务器初始化..."
+            
+            # 创建项目目录和必要的目录结构
+            echo "📁 创建项目目录: \$DEPLOY_DIR"
+            mkdir -p "\$DEPLOY_DIR"
+            cd "\$DEPLOY_DIR"
+            
+            # 创建必要的目录结构（nginx 相关目录）
+            echo "📁 创建目录结构..."
+            mkdir -p nginx/conf.d
+            mkdir -p nginx/ssl
+            mkdir -p nginx/logs
+            mkdir -p backups
+            
+            echo "✅ 服务器环境初始化完成"
+            
+            # 备份当前版本（如果存在）
+            if [ -d "current" ]; then
+              echo "💾 备份当前版本..."
+              BACKUP_DIR="backup_\$(date +%Y%m%d_%H%M%S)"
+              mkdir -p backups
+              mv current "backups/\$BACKUP_DIR" || true
+            fi
+            
+            # 创建新版本目录
+            mkdir -p current
+            cd current
+            
+            # 解压部署包
+            echo "📥 解压部署包..."
+            unzip -q /tmp/deploy.zip -d .
+            rm /tmp/deploy.zip
+            
+            # 检查 .env.production 文件是否存在
+            if [ ! -f ".env.production" ]; then
+              echo "⚠️  部署包中未找到 .env.production，尝试从备份恢复..."
+              if [ -d "../backups" ] && [ -n "\$(ls -A ../backups 2>/dev/null)" ]; then
+                LATEST_BACKUP=\$(ls -t ../backups | head -1)
+                if [ -f "../backups/\$LATEST_BACKUP/.env.production" ]; then
+                  cp "../backups/\$LATEST_BACKUP/.env.production" .env.production
+                  echo "✅ 已从备份恢复 .env.production"
+                else
+                  echo "❌ 错误: 未找到 .env.production 文件"
+                  echo "请确保仓库中包含 .env.production 文件，或首次部署时手动创建"
+                  exit 1
+                fi
+              else
+                echo "❌ 错误: 未找到 .env.production 文件"
+                echo "请确保仓库中包含 .env.production 文件，或首次部署时手动创建"
+                exit 1
+              fi
+            else
+              echo "✅ 找到 .env.production 文件"
+            fi
+            
+            # 停止现有服务（在 current 目录下执行）
+            echo "🛑 停止现有服务..."
+            docker-compose -f docker-compose.prod.yml down || true
+            
+            # 构建并启动新服务
+            echo "🔨 构建 Docker 镜像..."
+            docker-compose -f docker-compose.prod.yml build --no-cache app
+            
+            echo "🚀 启动新服务..."
+            docker-compose -f docker-compose.prod.yml up -d
+            
+            # 等待服务启动
+            echo "⏳ 等待服务启动..."
+            sleep 30
+            
+            # 检查服务状态
+            echo "📊 检查服务状态..."
+            docker-compose -f docker-compose.prod.yml ps
+            
+            # 运行数据库迁移（如果需要）
+            echo "🔄 运行数据库迁移..."
+            docker-compose -f docker-compose.prod.yml exec -T app npx prisma migrate deploy || {
+              echo "⚠️  数据库迁移失败或不需要迁移"
+            }
+            
+            # 清理旧镜像和未使用的资源
+            echo "🧹 清理旧镜像..."
+            docker image prune -f
+            
+            # 清理旧备份（只保留最近 5 个）
+            if [ -d "../backups" ]; then
+              echo "🧹 清理旧备份..."
+              cd ../backups
+              ls -t | tail -n +6 | xargs rm -rf 2>/dev/null || true
+            fi
+            
+            echo "✅ 部署完成！"
+          EOF
+      
+      - name: Health check
+        run: |
+          # 等待服务完全启动
+          sleep 10
+          
+          # 健康检查（请根据实际健康检查端点修改）
+          HEALTH_URL="http://${{ env.SERVER_HOST }}/health"
+          if curl -f "$HEALTH_URL" > /dev/null 2>&1; then
+            echo "✅ 健康检查通过"
+          else
+            echo "⚠️  健康检查失败，请检查服务器日志"
+            exit 1
+          fi
+

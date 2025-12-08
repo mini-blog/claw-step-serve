@@ -129,12 +129,14 @@ export class TravelController {
 
   @ApiOperation({ 
     summary: '生成邀请码',
-    description: '生成一个邀请码，用于邀请其他用户成为旅伴'
+    description: '生成一个邀请码，用于邀请其他用户成为旅伴。可选指定好友ID，将自动发送推送通知。'
   })
   @ApiBearerAuth('JWT-auth')
   @ApiResult(GenerateInvitationResponseDto)
   @Post('invitation/generate')
-  async generateInvitation(@Request() request: Request & { user: { id: string } }): Promise<GenerateInvitationResponseDto> {
+  async generateInvitation(
+    @Request() request: Request & { user: { id: string } },
+  ): Promise<GenerateInvitationResponseDto> {
     return await this.invitationService.generateInvitation(request.user.id);
   }
 

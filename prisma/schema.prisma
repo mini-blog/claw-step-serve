@@ -12,19 +12,22 @@ model User {
   openid             String?
   email              String?
   phone              String?
-  username           String?
   nickname           String?
   avatar             String?
   language           String              @default("zh_CN")
   isPro              Boolean             @default(false)
   travelTickets      Int                 @default(3)
+  
+  // Friend invitation code
+  friendInvitationCode String?           @unique
+  friendCodeCreatedAt  DateTime?
+  
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   chatMessages       ChatMessage[]
   chatSessions       ChatSession[]
   feedback           Feedback[]
   letters            Letter[]
-  letterReplies      LetterReply[]
   notifications      Notification[]
   proSubscriptions   ProSubscription[]
   stepRecords        StepRecord[]
@@ -36,6 +39,8 @@ model User {
   userAchievements   UserAchievement[]
   userDreams         UserDream[]
   userCoupons        UserCoupon[]
+  friendships        Friendship[]        @relation("UserFriendships")
+  friendOf           Friendship[]        @relation("FriendOf")
 
   @@unique([phone, openid])
   @@unique([email, openid])
@@ -80,7 +85,6 @@ model UserPet {
   chatMessages      ChatMessage[]
   chatSessions      ChatSession[]
   letters           Letter[]
-  letterReplies     LetterReply[]
   userAchievements  UserAchievement[]
   userDreams        UserDream[]
 
@@ -159,15 +163,16 @@ model StepRecord {
 
 model LetterTemplate {
   id          String   @id @default(uuid())
-  type        Int   // 1(歌曲) | 2（星盘） | 3（）
-  content     {}[] // {content, mediaType, mediaUrls}
+  petId       String
+  type        Int      // 1(歌曲) | 2（绘图） | 3（星座）
+  // 存储 LetterTemplate.json 的结构: Array<{ id, text, mediaType, mediaUrls, role, handles?, nextId? }>
+  content     Json
   
   // 触发条件
   triggerType String?  // 'city' | 'stepCount' | 'day' | 'manual'
   triggerValue String? // 触发值（城市ID+天数）
   
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
   
   pet         Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
   letters     Letter[] // 基于此模板生成的来信实例
@@ -179,62 +184,26 @@ model Letter {
   id              String        @id @default(uuid())
   userId          String
   userPetId       String        // 关联到用户选择的宠物实例
-  petId           String        // 保留用于快速查询（冗余字段）
-  templateId      String?       // 关联的模板ID（可选，支持手动创建）
+  templateId      String
+  // 存储 letterHistroy.ts 的结构: Array<{ id, templateItemId, text?, mediaType?, mediaUrls?, createdAt }>
+  content         Json
   
-  title           String
-  content         String
-  type            String        // 'aiDrawing' | 'aiSong' | 'aiHoroscope'
-  mediaUrls       String[]      // 媒体文件URLs（JSON数组）
-  mediaType       String        // 'none' | 'singleImage' | 'fourImages' | 'video'
+  previewText     String?       // 列表预览文本，避免列表查询关联 Template
   
   // 状态
   isRead          Boolean       @default(false)
-  hasInteracted   Boolean       @default(false) // 是否已交互
-  interactionType String?       // 'try' | 'save' | null - 用户选择的交互方式
+  isCompleted     Boolean       @default(false) // 标记对话是否已结束
   
   // 时间
   createdAt       DateTime      @default(now())
-  readAt          DateTime?
-  interactedAt    DateTime?
+  updatedAt       DateTime?     @updatedAt
   
   // 关联
   userPet         UserPet       @relation(fields: [userPetId], references: [id], onDelete: Cascade)
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   template        LetterTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  replies         LetterReply[] // 回复列表
-  // 注意：petId 仅作为冗余字段用于快速查询，不建立关系
   
   @@map("letters")
-}
-
-model LetterReply {
-  id          String   @id @default(uuid())
-  letterId    String
-  userId      String
-  userPetId   String   // 关联到用户选择的宠物实例
-  petId       String   // 保留用于快速查询（冗余字段）
-  
-  // 回复内容
-  content     String
-  mediaUrls   String[] // 媒体文件URLs（用户上传的图片、AI生成的图片/视频等）
-  mediaType   String   // 'none' | 'singleImage' | 'video'
-  
-  // 回复者
-  isFromUser  Boolean  @default(true) // true=用户回复，false=AI回复
-  
-  // AI生成相关
-  aiStatus    String?  // 'pending' | 'processing' | 'completed' | 'failed'
-  aiResultUrl String?  // AI生成的结果URL（图片、音频等）
-  
-  createdAt   DateTime @default(now())
-  
-  letter      Letter   @relation(fields: [letterId], references: [id], onDelete: Cascade)
-  userPet     UserPet  @relation(fields: [userPetId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // 注意：petId 仅作为冗余字段用于快速查询，不建立关系
-  
-  @@map("letter_replies")
 }
 
 model ChatSession {
@@ -289,7 +258,7 @@ model ChatMessage {
   
   @@map("chat_messages")
 }
-
+// 旅伴
 model TravelPartnership {
   id             String    @id @default(uuid())
   inviterId      String
@@ -306,6 +275,27 @@ model TravelPartnership {
   travels        Travel[]
 
   @@map("travel_partnerships")
+}
+
+// 好友关系表
+model Friendship {
+  id                String    @id @default(uuid())
+  userId            String    // 发起好友关系的用户
+  friendId          String    // 好友的用户ID
+  status            String    @default("active") // 'active' | 'pending_delete'
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deleteRequestedAt DateTime? // 删除请求时间
+  deleteExpiresAt   DateTime? // 删除请求过期时间（24小时后）
+  
+  user              User      @relation("UserFriendships", fields: [userId], references: [id], onDelete: Cascade)
+  friend            User      @relation("FriendOf", fields: [friendId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, friendId])
+  @@index([userId])
+  @@index([friendId])
+  @@index([status])
+  @@map("friendships")
 }
 
 model Travel {

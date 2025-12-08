@@ -14,10 +14,13 @@ import { CouponModule } from './modules/coupon/coupon.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { FriendshipModule } from './modules/friendship/friendship.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
     CoreModule,
+    ScheduleModule.forRoot(),
     // 业务模块
     AuthModule,
     UserModule,
@@ -33,6 +36,8 @@ import { UploadModule } from './modules/upload/upload.module';
     NotificationModule,
     FeedbackModule,
     UploadModule,
+    FriendshipModule,
+    // ScheduleModule.forRoot()
   ],
 })
 export class AppModule { }

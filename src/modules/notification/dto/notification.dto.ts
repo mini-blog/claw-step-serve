@@ -6,6 +6,7 @@ export enum NotificationType {
   TRAVEL_INVITATION = 'travel_invitation',
   ACTIVITY_PROMOTION = 'activity_promotion',
   SYSTEM = 'system',
+  LETTER = 'letter',
 }
 
 export class CreateNotificationDto {

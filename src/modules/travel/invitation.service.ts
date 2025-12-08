@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '@app/core/modules/prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { PushService } from '../notification/push/push.service';
 import { ValidateInvitationDto, AcceptInvitationDto } from './dto/invitation.dto';
 import {
   GenerateInvitationResponseDto,
@@ -13,6 +14,7 @@ import {
   CancelUnbindResponseDto
 } from './dto/invitation-response.dto';
 import { NotificationType } from '../notification/dto/notification.dto';
+import { uuidv7 } from 'uuidv7';
 
 @Injectable()
 export class InvitationService {
@@ -27,7 +29,8 @@ export class InvitationService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => NotificationService))
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly pushService: PushService
   ) {}
 
   /**
@@ -253,6 +256,17 @@ export class InvitationService {
         type: NotificationType.FRIEND_REQUEST,
         avatar: invitee.avatar || undefined,
       });
+      
+      // 推送通知
+      await this.pushService.pushToAccount(
+        partnership.inviterId,
+        '成为好友',
+        `${invitee.nickname || '用户'} 已经接受了您的好友邀请,可以双人旅行啦!`,
+        {
+          type: NotificationType.FRIEND_REQUEST,
+          partnerId: invitee.id
+        }
+      );
     }
 
     return {
@@ -367,26 +381,21 @@ export class InvitationService {
       }
     }
 
-    // 创建解除请求
-    const now = new Date();
-    const unbindExpiresAt = new Date(now.getTime() + this.UNBIND_EXPIRY_MS);
-
-    const updatedPartnership = await this.prisma.travelPartnership.update({
-      where: { id: partnershipId },
+    // 创建新的解除请求（设置24小时过期时间）
+    const unbindExpiresAt = new Date(Date.now() + this.UNBIND_EXPIRY_MS);
+    await this.prisma.travelPartnership.update({
+      where: { id: partnership.id },
       data: {
-        unbindRequestedAt: now,
+        unbindRequestedAt: new Date(),
         unbindExpiresAt
       }
     });
 
-    // TODO: 定时任务检查24小时后自动解除
-    // 或者在其他接口调用时检查过期并自动解除
-
     return {
       success: true,
       data: {
-        partnershipId: updatedPartnership.id,
-        expiresAt: updatedPartnership.unbindExpiresAt!.toISOString()
+        partnershipId: partnership.id,
+        expiresAt: unbindExpiresAt.toISOString()
       }
     };
   }
@@ -416,7 +425,7 @@ export class InvitationService {
 
     // 取消解除请求
     await this.prisma.travelPartnership.update({
-      where: { id: partnershipId },
+      where: { id: partnership.id },
       data: {
         unbindRequestedAt: null,
         unbindExpiresAt: null
@@ -472,4 +481,3 @@ export class InvitationService {
     return code;
   }
 }
-

@@ -69,7 +69,15 @@ export class UserController {
   @UseInterceptors(FileInterceptor('avatar'))
   @ApiConsumes('multipart/form-data')
   @ApiResult(UserProfileResponseDto)
-  @ApiBody({ type: UpdateUserProfileDto })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        nickname: { type: 'string', description: '昵称', example: '假装看风景' },
+        avatar: { type: 'string', format: 'binary', description: '头像文件' },
+      },
+    },
+  })
   @ApiResponse({ status: 404, description: '用户不存在', type: ErrorResponseDto })
   @Put('profile')
   async updateUserProfile(
@@ -77,6 +85,7 @@ export class UserController {
     @UploadedFile() avatar: Express.Multer.File,
     @Body() dto: UpdateUserProfileDto
   ): Promise<UserProfileResponseDto> {
+    console.log('updateUserProfile', dto, avatar);
     return await this.userService.updateUserProfile(request.user.id, dto, avatar);
   }
 

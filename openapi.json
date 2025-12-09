@@ -452,7 +452,19 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateUserProfileDto"
+                "type": "object",
+                "properties": {
+                  "nickname": {
+                    "type": "string",
+                    "description": "昵称",
+                    "example": "假装看风景"
+                  },
+                  "avatar": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "头像文件"
+                  }
+                }
               }
             }
           }
@@ -4506,21 +4518,6 @@
           "createdAt",
           "updatedAt"
         ]
-      },
-      "UpdateUserProfileDto": {
-        "type": "object",
-        "properties": {
-          "nickname": {
-            "type": "string",
-            "description": "昵称",
-            "example": "假装看风景"
-          },
-          "avatar": {
-            "type": "string",
-            "description": "头像文件",
-            "format": "binary"
-          }
-        }
       },
       "OnboardingCompleteDto": {
         "type": "object",

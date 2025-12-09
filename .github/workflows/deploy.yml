@@ -196,15 +196,15 @@ jobs:
               echo "✅ Docker 已安装: \$(docker --version)"
             fi
             
-            # 检查 Docker Compose
-            if ! command -v docker-compose &> /dev/null; then
-              echo "📦 安装 Docker Compose..."
-              DOCKER_COMPOSE_VERSION=\$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d\\" -f4)
-              curl -L "https://github.com/docker/compose/releases/download/\${DOCKER_COMPOSE_VERSION}/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose
-              chmod +x /usr/local/bin/docker-compose
-              echo "✅ Docker Compose 安装完成"
+            # 检查 Docker Compose (使用 Docker 插件版本)
+            if docker compose version &> /dev/null; then
+              echo "✅ Docker Compose (Plugin) 已安装: \$(docker compose version)"
+            elif ! command -v docker-compose &> /dev/null; then
+               echo "⚠️ 未找到 docker compose 命令，尝试建立软链接或使用 yum 安装插件..."
+               # 尝试安装插件（如果你之前 yum install docker-compose-plugin 成功了，这里应该不用再跑）
+               yum install -y docker-compose-plugin || true
             else
-              echo "✅ Docker Compose 已安装: \$(docker-compose --version)"
+               echo "✅ Docker Compose (Standalone) 已安装"
             fi
             
             # 检查 unzip（用于解压部署包）
@@ -284,14 +284,14 @@ jobs:
             
             # 停止现有服务（在 current 目录下执行）
             echo "🛑 停止现有服务..."
-            docker-compose -f docker-compose.prod.yml down || true
+            docker compose -f docker-compose.prod.yml down || true
             
             # 构建并启动新服务
             echo "🔨 构建 Docker 镜像..."
-            docker-compose -f docker-compose.prod.yml build --no-cache app
+            docker compose -f docker-compose.prod.yml build --no-cache app
             
             echo "🚀 启动新服务..."
-            docker-compose -f docker-compose.prod.yml up -d
+            docker compose -f docker-compose.prod.yml up -d
             
             # 等待服务启动
             echo "⏳ 等待服务启动..."
@@ -299,11 +299,11 @@ jobs:
             
             # 检查服务状态
             echo "📊 检查服务状态..."
-            docker-compose -f docker-compose.prod.yml ps
+            docker compose -f docker-compose.prod.yml ps
             
             # 运行数据库迁移（如果需要）
             echo "🔄 运行数据库迁移..."
-            docker-compose -f docker-compose.prod.yml exec -T app npx prisma migrate deploy || {
+            docker compose -f docker-compose.prod.yml exec -T app npx prisma migrate deploy || {
               echo "⚠️  数据库迁移失败或不需要迁移"
             }
             

@@ -30,6 +30,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         : `${code >= 500 ? '服务器出错' : '客户端故障'}`;
     }
 
+    console.log('exception', exception);
+
     response.status(HttpStatus.OK).json({
       code,
       message,

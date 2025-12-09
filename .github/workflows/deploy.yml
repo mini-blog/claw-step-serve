@@ -154,9 +154,23 @@ jobs:
                 
                 # 安装 Docker
                 yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+                
+                # 配置 Docker 镜像加速器 (阿里云环境)
+                mkdir -p /etc/docker
+                cat > /etc/docker/daemon.json <<DAEMON_EOF
+                {
+                  "registry-mirrors": [
+                    "https://registry.cn-hangzhou.aliyuncs.com",
+                    "https://docker.m.daocloud.io",
+                    "https://mirror.ccs.tencentyun.com"
+                  ]
+                }
+                DAEMON_EOF
+                
+                systemctl daemon-reload
                 systemctl start docker
                 systemctl enable docker
-                echo "✅ Docker 安装完成"
+                echo "✅ Docker 安装完成 (已配置镜像加速)"
               elif command -v yum &> /dev/null; then
                 echo "   使用 yum 安装 Docker (使用阿里云镜像源)..."
                 yum install -y yum-utils device-mapper-persistent-data lvm2
@@ -194,6 +208,24 @@ jobs:
               fi
             else
               echo "✅ Docker 已安装: \$(docker --version)"
+              
+              # 检查是否配置了镜像加速，如果没有则配置
+              if [ ! -f /etc/docker/daemon.json ] || ! grep -q "registry-mirrors" /etc/docker/daemon.json; then
+                echo "⚙️ 配置 Docker 镜像加速器..."
+                mkdir -p /etc/docker
+                cat > /etc/docker/daemon.json <<DAEMON_EOF
+                {
+                  "registry-mirrors": [
+                    "https://registry.cn-hangzhou.aliyuncs.com",
+                    "https://docker.m.daocloud.io",
+                    "https://mirror.ccs.tencentyun.com"
+                  ]
+                }
+                DAEMON_EOF
+                systemctl daemon-reload
+                systemctl restart docker
+                echo "✅ 镜像加速器配置完成"
+              fi
             fi
             
             # 检查 Docker Compose (使用 Docker 插件版本)

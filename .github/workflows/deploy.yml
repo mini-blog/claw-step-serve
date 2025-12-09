@@ -157,15 +157,7 @@ jobs:
                 
                 # 配置 Docker 镜像加速器 (阿里云环境)
                 mkdir -p /etc/docker
-                cat > /etc/docker/daemon.json <<DAEMON_EOF
-                {
-                  "registry-mirrors": [
-                    "https://registry.cn-hangzhou.aliyuncs.com",
-                    "https://docker.m.daocloud.io",
-                    "https://mirror.ccs.tencentyun.com"
-                  ]
-                }
-                DAEMON_EOF
+                echo '{"registry-mirrors": ["https://registry.cn-hangzhou.aliyuncs.com", "https://docker.m.daocloud.io", "https://mirror.ccs.tencentyun.com"]}' > /etc/docker/daemon.json
                 
                 systemctl daemon-reload
                 systemctl start docker
@@ -213,15 +205,7 @@ jobs:
               if [ ! -f /etc/docker/daemon.json ] || ! grep -q "registry-mirrors" /etc/docker/daemon.json; then
                 echo "⚙️ 配置 Docker 镜像加速器..."
                 mkdir -p /etc/docker
-                cat > /etc/docker/daemon.json <<DAEMON_EOF
-                {
-                  "registry-mirrors": [
-                    "https://registry.cn-hangzhou.aliyuncs.com",
-                    "https://docker.m.daocloud.io",
-                    "https://mirror.ccs.tencentyun.com"
-                  ]
-                }
-                DAEMON_EOF
+                echo '{"registry-mirrors": ["https://registry.cn-hangzhou.aliyuncs.com", "https://docker.m.daocloud.io", "https://mirror.ccs.tencentyun.com"]}' > /etc/docker/daemon.json
                 systemctl daemon-reload
                 systemctl restart docker
                 echo "✅ 镜像加速器配置完成"

@@ -306,13 +306,6 @@ jobs:
             echo "🔨 构建 Docker 镜像..."
             docker compose -f docker-compose.prod.yml build --no-cache app
             
-            # 在启动主服务前，先通过临时容器同步数据库
-            # 这可以避免因数据库未初始化导致 app 容器启动失败
-            echo "🔄 预初始化数据库..."
-            docker compose -f docker-compose.prod.yml run --rm app npx prisma db push --accept-data-loss || {
-               echo "⚠️  数据库预同步失败，服务启动可能会出错"
-            }
-            
             echo "🚀 启动新服务..."
             docker compose -f docker-compose.prod.yml up -d
             

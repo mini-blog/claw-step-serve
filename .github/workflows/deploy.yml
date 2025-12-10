@@ -306,6 +306,13 @@ jobs:
             echo "🔨 构建 Docker 镜像..."
             docker compose -f docker-compose.prod.yml build --no-cache app
             
+            # 在启动主服务前，先通过临时容器同步数据库
+            # 这可以避免因数据库未初始化导致 app 容器启动失败
+            echo "🔄 预初始化数据库..."
+            docker compose -f docker-compose.prod.yml run --rm app npx prisma db push --accept-data-loss || {
+               echo "⚠️  数据库预同步失败，服务启动可能会出错"
+            }
+            
             echo "🚀 启动新服务..."
             docker compose -f docker-compose.prod.yml up -d
             
@@ -316,20 +323,6 @@ jobs:
             # 检查服务状态
             echo "📊 检查服务状态..."
             docker compose -f docker-compose.prod.yml ps
-            
-            # 同步数据库结构
-            echo "🔄 同步数据库结构..."
-            # 优先尝试使用 migrate deploy (规范流程)
-            if docker compose -f docker-compose.prod.yml exec -T app npx prisma migrate deploy; then
-              echo "✅ 数据库迁移成功"
-            else
-              echo "⚠️  migrate deploy 失败 (可能没有迁移文件)，尝试使用 db push 强制同步..."
-              # 如果失败，回退到 db push (适合无 migration 文件的场景)
-              docker compose -f docker-compose.prod.yml exec -T app npx prisma db push --accept-data-loss || {
-                 echo "❌ 数据库同步失败"
-                 # 不强制退出，允许手动检查
-              }
-            fi
             
             # 清理旧镜像和未使用的资源
             echo "🧹 清理旧镜像..."
